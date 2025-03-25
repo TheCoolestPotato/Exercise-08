@@ -1,0 +1,80 @@
+install.packages("tidyverse")
+install.packages("mosaic")
+install.packages("usethis") 
+install.packages("lmodel2") 
+install.packages("sjPlot") 
+install.packages("broom") 
+install.packages("manipulate") 
+install.packages("patchwork") 
+install.packages("infer")
+install.packages("latticeExtra")
+library(lmodel2) 
+library(latticeExtra)
+library(sjPlot) 
+library(broom) 
+library(tidyverse) 
+library(mosaic)
+library(manipulate) 
+library(patchwork) 
+library(infer) 
+library(usethis)
+f <- "https://raw.githubusercontent.com/difiore/ada-datasets/main/Street_et_al_2017.csv"
+d <- read.csv(f)
+d1 <- drop_na(d, ECV, Group_size)
+skimr::skim(d)
+plot(d$Group_size, d$ECV)
+plot(d$Longevity, d$ECV)
+plot(d$Weaning, d$ECV)
+plot(d$Repro_lifespan, d$ECV)
+m1 <- lm(formula = ECV~ Longevity, data = d)
+broom::tidy(m1)
+confint(m1)
+mean_group <- mean(d1$Group_size)
+mean_ECV <- mean(d1$ECV)
+beta1_group_ECV <- cor(d1$ECV, d1$Group_size)*((sd(d1$ECV)/sd(d1$Group_size)))
+beta0_group_ECV <- (mean(d1$ECV)) - (beta1_group_ECV*(mean(d1$Group_size)))
+lm(ECV ~ Group_size, data = d1)
+d_catarrhines <- filter(d1, Taxonomic_group == "Catarrhini")
+d_platyrrhines <- filter(d1, Taxonomic_group == "Platyrrhini")
+d_strepsirhines <- filter(d1, Taxonomic_group == "Strepsirhini")
+beta1_group_ECV_cat <- cor(d_catarrhines$ECV, d_catarrhines$Group_size)*((sd(d_catarrhines$ECV)/sd(d_catarrhines$Group_size)))
+beta0_group_ECV_cat <- (mean(d_catarrhines$ECV)) - (beta1_group_ECV_cat*(mean(d_catarrhines$Group_size)))
+beta1_group_ECV_plat <- cor(d_platyrrhines$ECV, d_platyrrhines$Group_size)*((sd(d_platyrrhines$ECV)/sd(d_platyrrhines$Group_size)))
+beta0_group_ECV_plat <- (mean(d_platyrrhines$ECV)) - (beta1_group_ECV_plat*(mean(d_platyrrhines$Group_size)))
+beta1_group_ECV_strep <- cor(d_strepsirhines$ECV, d_strepsirhines$Group_size)*((sd(d_strepsirhines$ECV)/sd(d_strepsirhines$Group_size)))
+beta0_group_ECV_strep <- (mean(d_strepsirhines$ECV)) - (beta1_group_ECV_strep*(mean(d_strepsirhines$Group_size)))
+print(beta1_group_ECV_cat) +
+  print(beta0_group_ECV_cat)
+lm(ECV ~ Group_size, data = d_catarrhines)
+print(beta1_group_ECV_plat) +
+  print(beta0_group_ECV_plat)
+lm(ECV ~ Group_size, data = d_platyrrhines)
+print(beta1_group_ECV_strep) +
+  print(beta0_group_ECV_strep)
+lm(ECV ~ Group_size, data = d_strepsirhines)
+##The slope for catarrhines is notably lower than that of the other two groups. The intercepts are also vastly different, at 83, 16, and 8 respectively##
+SE_beta1 <- sqrt(sum((((d1$ECV - (beta0_group_ECV + beta1_group_ECV * d1$Group_size))^2)/(nrow(d1) - 1 - 1))/(sum((d1$Group_size - mean(d1$Group_size))^2))))
+perm1000 <- vector(length = 1000)
+for (i in 1:1000){
+  d1$Group_size <- sample(d1$Group_size)
+  result <- lm(ECV ~ Group_size, data = d1) |>
+    tidy() |>
+    filter(term == "Group_size") |>
+    pull(estimate)
+  perm1000[[i]] <- result
+}
+histogram(perm1000, xlim = c(-3,3))
+ladd(panel.abline(v = beta1_group_ECV, lty = 3, lwd = 2))
+boot1000 <- vector(length = 1000)
+for (i in 1:1000){
+  boot.sample <- sample_n(d1, nrow(d1), replace = TRUE)
+  result <- lm(ECV ~ Group_size, data = boot.sample) |>
+    tidy() |>
+    filter(term == "Group_size") |>
+    pull(estimate)
+  boot1000[[i]] <- result
+}
+histogram(boot1000, xlim=c(beta1_group_ECV-3, beta1_group_ECV+3))
+CI <- c(quantile(boot1000, 0.025), quantile(boot1000, .975))
+ladd(panel.abline(v = CI, lty = 3, lwd = 2, col = "orange"))
+##The 95% confidence interval does not cross 0, thus we can conclude with 95% confidence that the slope is different than zero.
